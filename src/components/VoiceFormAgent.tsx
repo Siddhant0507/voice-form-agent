@@ -9,15 +9,25 @@ export function VoiceFormAgent({
   onError,
   assistantName = 'Form Assistant',
   firstMessage = "Hi! I'll help you fill out this form. Let's get started.",
-  buttonLabel = 'Start Voice Form',
+  voice,
+  model,
+  buttonLabel = 'Start voice form',
   stopLabel = 'Stop',
   className,
+  startButtonClassName,
+  stopButtonClassName,
+  muteButtonClassName,
+  startButtonStyle,
+  stopButtonStyle,
+  accentColor = '#000000',
 }: VoiceFormAgentProps) {
-  const { status, isMuted, volumeLevel, start, stop, toggleMute } = useVoiceForm({
+  const { status, errorMessage, isMuted, volumeLevel, start, stop, toggleMute } = useVoiceForm({
     vapiKey,
     fields,
     assistantName,
     firstMessage,
+    voice,
+    model,
     onComplete,
     onError,
   })
@@ -25,29 +35,27 @@ export function VoiceFormAgent({
   const isActive = status === 'active'
   const isConnecting = status === 'connecting'
   const isCompleted = status === 'completed'
+  const isError = status === 'error'
 
-  const barCount = 5
-  const bars = Array.from({ length: barCount })
+  const bars = Array.from({ length: 5 })
 
   return (
-    <div
-      className={className}
-      style={styles.wrapper}
-      data-voice-form-status={status}
-    >
+    <div className={className} style={styles.wrapper} data-voice-form-status={status}>
+
       {(isActive || isConnecting) && (
         <div style={styles.visualizer}>
           {bars.map((_, i) => {
             const height = isActive
-              ? Math.max(4, Math.round(volumeLevel * 40 * Math.sin((i + 1) * 0.8)))
-              : 4
+              ? Math.max(3, Math.round(volumeLevel * 36 * Math.sin((i + 1) * 0.8)))
+              : 3
             return (
               <div
                 key={i}
                 style={{
                   ...styles.bar,
                   height,
-                  opacity: isConnecting ? 0.4 : 1,
+                  background: accentColor,
+                  opacity: isConnecting ? 0.3 : 0.8,
                   transition: 'height 80ms ease',
                 }}
               />
@@ -58,27 +66,45 @@ export function VoiceFormAgent({
 
       {isCompleted ? (
         <div style={styles.completedBadge}>
-          <span style={styles.checkmark}>✓</span>
-          Form submitted
+          <span>✓</span> Submitted
         </div>
       ) : isActive || isConnecting ? (
         <div style={styles.controls}>
           <button
             onClick={toggleMute}
-            style={styles.muteButton}
+            style={styles.iconButton}
+            className={muteButtonClassName}
             aria-label={isMuted ? 'Unmute' : 'Mute'}
             title={isMuted ? 'Unmute' : 'Mute'}
           >
-            {isMuted ? '🔇' : '🎙️'}
+            {isMuted ? '🔇' : '🎙'}
           </button>
-          <button onClick={stop} style={styles.stopButton} disabled={isConnecting}>
+          <button
+            onClick={stop}
+            style={{ ...styles.stopButton, ...stopButtonStyle }}
+            className={stopButtonClassName}
+            disabled={isConnecting}
+          >
             {isConnecting ? 'Connecting…' : stopLabel}
           </button>
         </div>
       ) : (
-        <button onClick={start} style={styles.startButton}>
-          🎙️ {buttonLabel}
-        </button>
+        <>
+          {isError && errorMessage && (
+            <p style={styles.error}>{errorMessage}</p>
+          )}
+          <button
+            onClick={start}
+            style={{
+              ...styles.startButton,
+              background: accentColor,
+              ...startButtonStyle,
+            }}
+            className={startButtonClassName}
+          >
+            🎙 {buttonLabel}
+          </button>
+        </>
       )}
     </div>
   )
@@ -89,70 +115,73 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'inline-flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: 12,
+    gap: 10,
     fontFamily: 'inherit',
   },
   visualizer: {
     display: 'flex',
     alignItems: 'center',
-    gap: 4,
-    height: 40,
+    gap: 3,
+    height: 32,
   },
   bar: {
-    width: 4,
+    width: 3,
     borderRadius: 2,
-    background: '#6366f1',
-    minHeight: 4,
+    minHeight: 3,
   },
   controls: {
     display: 'flex',
-    gap: 8,
+    gap: 6,
     alignItems: 'center',
   },
   startButton: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 8,
-    padding: '10px 20px',
-    borderRadius: 8,
+    gap: 6,
+    padding: '9px 18px',
+    borderRadius: 6,
     border: 'none',
-    background: '#6366f1',
     color: '#fff',
-    fontSize: 15,
-    fontWeight: 600,
-    cursor: 'pointer',
-  },
-  stopButton: {
-    padding: '8px 16px',
-    borderRadius: 8,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
-    color: '#374151',
     fontSize: 14,
     fontWeight: 500,
     cursor: 'pointer',
+    letterSpacing: '0.01em',
   },
-  muteButton: {
-    padding: '8px 12px',
-    borderRadius: 8,
-    border: '1px solid #e5e7eb',
-    background: '#fff',
-    fontSize: 16,
+  stopButton: {
+    padding: '7px 14px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'transparent',
+    color: '#374151',
+    fontSize: 13,
     cursor: 'pointer',
+  },
+  iconButton: {
+    padding: '7px 10px',
+    borderRadius: 6,
+    border: '1px solid #d1d5db',
+    background: 'transparent',
+    fontSize: 15,
+    cursor: 'pointer',
+    lineHeight: 1,
   },
   completedBadge: {
     display: 'inline-flex',
     alignItems: 'center',
-    gap: 6,
-    padding: '8px 16px',
-    borderRadius: 8,
+    gap: 5,
+    padding: '7px 14px',
+    borderRadius: 6,
     background: '#f0fdf4',
     color: '#15803d',
-    fontSize: 14,
-    fontWeight: 600,
+    fontSize: 13,
+    fontWeight: 500,
     border: '1px solid #bbf7d0',
   },
-  checkmark: {
-    fontSize: 16,
+  error: {
+    margin: 0,
+    fontSize: 12,
+    color: '#dc2626',
+    maxWidth: 280,
+    textAlign: 'center',
   },
 }

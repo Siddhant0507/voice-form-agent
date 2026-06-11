@@ -1,13 +1,23 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
-import Vapi from '@vapi-ai/web'
+import _VapiImport from '@vapi-ai/web'
 import { buildAssistantConfig } from '../utils/buildAssistantConfig'
-import { FormData, FormField, VoiceFormStatus } from '../types'
+import { AIModel, FormData, FormField, VoiceConfig, VoiceFormStatus } from '../types'
+
+// Vite's CJS→ESM interop wraps the entire exports object as `.default` when
+// the CJS module has __esModule:true (TypeScript pattern). Guard both paths:
+// - normal bundler path: _VapiImport is the class itself (typeof === 'function')
+// - Vite isNodeMode path: _VapiImport is the exports object, class is in .default
+const Vapi = (
+  typeof _VapiImport === 'function' ? _VapiImport : (_VapiImport as any).default
+) as typeof _VapiImport
 
 interface UseVoiceFormOptions {
   vapiKey: string
   fields: FormField[]
   assistantName: string
   firstMessage: string
+  voice?: VoiceConfig
+  model?: AIModel
   onComplete?: (data: FormData) => void
   onError?: (error: Error) => void
 }
@@ -17,19 +27,32 @@ export function useVoiceForm({
   fields,
   assistantName,
   firstMessage,
+  voice,
+  model,
   onComplete,
   onError,
 }: UseVoiceFormOptions) {
-  const vapiRef = useRef<Vapi | null>(null)
+  const vapiRef = useRef<InstanceType<typeof _VapiImport> | null>(null)
   const [status, setStatus] = useState<VoiceFormStatus>('idle')
   const [isMuted, setIsMuted] = useState(false)
   const [volumeLevel, setVolumeLevel] = useState(0)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   useEffect(() => {
+    // React StrictMode runs effects twice in dev. Destroy any previous instance
+    // before creating a new one to avoid duplicate Krisp SDK loads.
+    if (vapiRef.current) {
+      vapiRef.current.stop().catch(() => {})
+      vapiRef.current = null
+    }
+
     const vapi = new Vapi(vapiKey)
     vapiRef.current = vapi
 
-    vapi.on('call-start', () => setStatus('active'))
+    vapi.on('call-start', () => {
+      setStatus('active')
+      setErrorMessage(null)
+    })
     vapi.on('call-end', () => {
       setStatus((prev) => (prev === 'completed' ? 'completed' : 'idle'))
       setVolumeLevel(0)
@@ -57,26 +80,31 @@ export function useVoiceForm({
       }
     })
 
-    vapi.on('error', (err: Error) => {
+    vapi.on('error', (err: any) => {
       setStatus('error')
-      onError?.(err)
+      const msg = err?.error?.message ?? err?.message ?? 'Something went wrong. Please try again.'
+      setErrorMessage(msg)
+      onError?.(err instanceof Error ? err : new Error(msg))
     })
 
     return () => {
-      vapi.stop()
+      vapiRef.current = null
+      vapi.stop().catch(() => {})
     }
   }, [vapiKey])
 
   const start = useCallback(() => {
     if (!vapiRef.current) return
     setStatus('connecting')
-    const config = buildAssistantConfig(fields, assistantName, firstMessage)
+    setErrorMessage(null)
+    const config = buildAssistantConfig(fields, assistantName, firstMessage, voice, model)
     vapiRef.current.start(config as any)
-  }, [fields, assistantName, firstMessage])
+  }, [fields, assistantName, firstMessage, voice, model])
 
   const stop = useCallback(() => {
     vapiRef.current?.stop()
     setStatus('idle')
+    setErrorMessage(null)
   }, [])
 
   const toggleMute = useCallback(() => {
@@ -86,5 +114,5 @@ export function useVoiceForm({
     setIsMuted(next)
   }, [isMuted])
 
-  return { status, isMuted, volumeLevel, start, stop, toggleMute }
+  return { status, errorMessage, isMuted, volumeLevel, start, stop, toggleMute }
 }
