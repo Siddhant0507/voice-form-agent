@@ -1,6 +1,6 @@
 {
   "name": "voice-form-agent",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "Convert any form into a voice conversation powered by Vapi AI",
   "keywords": ["vapi", "voice", "form", "react", "ai", "voice-form"],
   "author": "",
